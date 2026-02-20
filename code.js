@@ -266,18 +266,12 @@ figma.ui.onmessage = async (msg) => {
             }
             const unique = deduplicateColors(raw);
             const named = assignTokenNames(unique, (_a = msg.pattern) !== null && _a !== void 0 ? _a : "tailwind", (_b = msg.customPrefix) !== null && _b !== void 0 ? _b : "color");
-            figma.ui.postMessage({ type: "colors-extracted", colors: named });
-            break;
-        }
-        case "rename-token": {
-            // Just relay back; renaming is handled in UI state
-            figma.ui.postMessage({ type: "token-renamed", index: msg.index, name: msg.name });
+            figma.ui.postMessage({ type: "colors-extracted", colors: named, source: "extract" });
             break;
         }
         case "apply-naming": {
-            // Re-apply naming to existing colors with new pattern
             const renamed = assignTokenNames(msg.colors, msg.pattern, (_c = msg.customPrefix) !== null && _c !== void 0 ? _c : "color");
-            figma.ui.postMessage({ type: "colors-extracted", colors: renamed });
+            figma.ui.postMessage({ type: "colors-extracted", colors: renamed, source: "rename" });
             break;
         }
         case "export-variables": {

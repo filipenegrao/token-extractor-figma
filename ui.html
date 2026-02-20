@@ -46,6 +46,7 @@
       display: flex;
       align-items: center;
       gap: 8px;
+      flex-shrink: 0;
     }
 
     header h1 {
@@ -133,7 +134,7 @@
       font-weight: 500;
       cursor: pointer;
       border: none;
-      transition: background 0.15s, opacity 0.15s;
+      transition: background 0.15s, opacity 0.15s, color 0.15s;
       width: 100%;
     }
 
@@ -278,41 +279,6 @@
     .source-stroke { background: #ff8c3b22; color: #ffaa6a; }
     .source-text   { background: #3bff8c22; color: #6affaa; }
 
-    /* ── JSON Preview ── */
-    .json-preview-wrap {
-      position: relative;
-    }
-
-    .json-preview {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-sm);
-      padding: 10px;
-      font-family: "SF Mono", "Fira Code", monospace;
-      font-size: 10px;
-      color: var(--text);
-      white-space: pre;
-      overflow: auto;
-      max-height: 180px;
-      line-height: 1.6;
-    }
-
-    .copy-btn {
-      position: absolute;
-      top: 6px;
-      right: 6px;
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      color: var(--text-muted);
-      font-size: 10px;
-      padding: 3px 8px;
-      border-radius: var(--radius-sm);
-      cursor: pointer;
-      transition: color 0.15s, border-color 0.15s;
-    }
-
-    .copy-btn:hover { color: var(--text); border-color: var(--accent); }
-
     /* ── Status ── */
     .status {
       font-size: 11px;
@@ -327,6 +293,31 @@
     .status-success { background: #4caf8222; color: #7ddba8; border: 1px solid #4caf8244; }
     .status-error   { background: #f4706722; color: #f9a09a; border: 1px solid #f4706744; }
     .status-warning { background: #e8a83822; color: #f0c47a; border: 1px solid #e8a83844; }
+
+    /* ── Toast (feedback flutuante para ações) ── */
+    #toast {
+      position: fixed;
+      bottom: 16px;
+      left: 50%;
+      transform: translateX(-50%) translateY(12px);
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-size: 11px;
+      padding: 8px 14px;
+      border-radius: 20px;
+      white-space: nowrap;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s, transform 0.2s;
+      z-index: 100;
+    }
+    #toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+    #toast.toast-success { border-color: var(--success); color: #7ddba8; }
+    #toast.toast-error   { border-color: var(--error);   color: #f9a09a; }
 
     .hidden { display: none !important; }
 
@@ -393,7 +384,7 @@
       </button>
     </div>
 
-    <!-- Status -->
+    <!-- Status (extração) -->
     <div id="status" class="status status-info hidden"></div>
 
     <!-- Color list section -->
@@ -405,7 +396,7 @@
 
       <div class="color-list" id="colorList"></div>
 
-      <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px;">
+      <div style="margin-top: 10px;">
         <button class="btn btn-secondary" id="reapplyBtn">
           ↺ Re-apply naming pattern
         </button>
@@ -420,20 +411,9 @@
         <button class="btn btn-success" id="exportVarsBtn">
           <span class="btn-icon">◈</span> Export to Variables
         </button>
-        <button class="btn btn-secondary" id="exportJsonBtn">
-          <span class="btn-icon">{}</span> Export to JSON
+        <button class="btn btn-secondary" id="copyJsonBtn">
+          <span class="btn-icon">{}</span> Copy JSON
         </button>
-      </div>
-    </div>
-
-    <!-- JSON Preview -->
-    <div id="jsonSection" class="hidden">
-      <div class="section-header" style="margin-top: 4px;">
-        <span class="section-title">JSON Preview</span>
-      </div>
-      <div class="json-preview-wrap">
-        <pre class="json-preview" id="jsonPreview"></pre>
-        <button class="copy-btn" id="copyBtn">Copy</button>
       </div>
     </div>
 
@@ -445,67 +425,105 @@
   </div>
 </div>
 
+<!-- Toast de feedback -->
+<div id="toast"></div>
+
 <script>
   // ── State ──────────────────────────────────────────────────────────────────
-  let currentColors = [];
+  let currentColors  = [];
   let currentPattern = 'tailwind';
-  let jsonContent = '';
+  let pendingCopy    = false; // aguardando json-ready para copiar
+  let toastTimer     = null;
 
   // ── DOM refs ───────────────────────────────────────────────────────────────
-  const patternSelect   = document.getElementById('pattern');
+  const patternSelect     = document.getElementById('pattern');
   const customPrefixField = document.getElementById('customPrefixField');
   const customPrefixInput = document.getElementById('customPrefix');
-  const extractBtn      = document.getElementById('extractBtn');
-  const reapplyBtn      = document.getElementById('reapplyBtn');
-  const exportVarsBtn   = document.getElementById('exportVarsBtn');
-  const exportJsonBtn   = document.getElementById('exportJsonBtn');
-  const copyBtn         = document.getElementById('copyBtn');
-  const statusEl        = document.getElementById('status');
-  const colorSection    = document.getElementById('colorSection');
-  const exportSection   = document.getElementById('exportSection');
-  const jsonSection     = document.getElementById('jsonSection');
-  const emptyState      = document.getElementById('emptyState');
-  const colorList       = document.getElementById('colorList');
-  const colorCount      = document.getElementById('colorCount');
-  const jsonPreview     = document.getElementById('jsonPreview');
+  const extractBtn        = document.getElementById('extractBtn');
+  const reapplyBtn        = document.getElementById('reapplyBtn');
+  const clearBtn          = document.getElementById('clearBtn');
+  const exportVarsBtn     = document.getElementById('exportVarsBtn');
+  const copyJsonBtn       = document.getElementById('copyJsonBtn');
+  const statusEl          = document.getElementById('status');
+  const colorSection      = document.getElementById('colorSection');
+  const exportSection     = document.getElementById('exportSection');
+  const emptyState        = document.getElementById('emptyState');
+  const colorList         = document.getElementById('colorList');
+  const colorCount        = document.getElementById('colorCount');
+  const toast             = document.getElementById('toast');
 
-  // ── DOM refs ───────────────────────────────────────────────────────────────
-  const clearBtn = document.getElementById('clearBtn');
-
-  // ── Helpers ────────────────────────────────────────────────────────────────
-  function resetUI() {
-    currentColors = [];
-    jsonContent = '';
-    colorList.innerHTML = '';
-    colorSection.classList.add('hidden');
-    exportSection.classList.add('hidden');
-    jsonSection.classList.add('hidden');
-    emptyState.classList.remove('hidden');
-    clearBtn.classList.add('hidden');
-    hideStatus();
+  // ── Toast ──────────────────────────────────────────────────────────────────
+  function showToast(message, type = 'success') {
+    if (toastTimer) clearTimeout(toastTimer);
+    toast.textContent = message;
+    toast.className = `show toast-${type}`;
+    toastTimer = setTimeout(() => {
+      toast.className = '';
+    }, 2500);
   }
 
-  function showStatus(message, type = 'info') {
+  // ── Status (extração) ─────────────────────────────────────────────────────
+  let statusTimer = null;
+  function showStatus(message, type = 'info', autohide = false) {
+    if (statusTimer) clearTimeout(statusTimer);
     statusEl.textContent = message;
     statusEl.className = `status status-${type}`;
     statusEl.classList.remove('hidden');
+    if (autohide) {
+      statusTimer = setTimeout(() => statusEl.classList.add('hidden'), 3000);
+    }
   }
 
   function hideStatus() {
     statusEl.classList.add('hidden');
   }
 
+  // ── Clipboard (compatível com iframe do Figma) ────────────────────────────
+  function copyToClipboard(text) {
+    // Tenta a API moderna primeiro; se falhar (sem permissão no iframe), usa fallback
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(text).catch(() => fallbackCopy(text));
+    }
+    return Promise.resolve(fallbackCopy(text));
+  }
+
+  function fallbackCopy(text) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.cssText = 'position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    try { document.execCommand('copy'); } catch (_) {}
+    document.body.removeChild(ta);
+  }
+
+  // ── Loading states ────────────────────────────────────────────────────────
   function setLoading(loading) {
     extractBtn.disabled = loading;
   }
 
   function setExportLoading(loading) {
     exportVarsBtn.disabled = loading;
-    exportJsonBtn.disabled = loading;
+    copyJsonBtn.disabled   = loading;
   }
 
+  // ── Reset ─────────────────────────────────────────────────────────────────
+  function resetUI() {
+    currentColors = [];
+    pendingCopy   = false;
+    colorList.innerHTML = '';
+    colorSection.classList.add('hidden');
+    exportSection.classList.add('hidden');
+    emptyState.classList.remove('hidden');
+    clearBtn.classList.add('hidden');
+    hideStatus();
+  }
+
+  // ── Render color list ─────────────────────────────────────────────────────
   function renderColorList(colors) {
     colorList.innerHTML = '';
+
     colors.forEach((color, index) => {
       const item = document.createElement('div');
       item.className = 'color-item';
@@ -513,7 +531,7 @@
       const alpha = color.a < 1 ? ` ${Math.round(color.a * 100)}%` : '';
 
       item.innerHTML = `
-        <div class="color-swatch" style="background: ${color.hex}; opacity: ${color.a};"></div>
+        <div class="color-swatch" style="background:${color.hex}; opacity:${color.a};"></div>
         <div class="color-info">
           <input
             class="token-input"
@@ -533,16 +551,15 @@
 
     // Live rename
     colorList.querySelectorAll('.token-input').forEach(input => {
-      input.addEventListener('input', (e) => {
+      input.addEventListener('input', e => {
         const idx = parseInt(e.target.dataset.index);
         currentColors[idx].tokenName = e.target.value;
-        updateJsonPreview();
       });
     });
 
-    // Remove buttons
+    // Remove individual
     colorList.querySelectorAll('.remove-btn').forEach(btn => {
-      btn.addEventListener('click', (e) => {
+      btn.addEventListener('click', e => {
         const idx = parseInt(e.currentTarget.dataset.index);
         currentColors.splice(idx, 1);
         if (currentColors.length === 0) {
@@ -550,80 +567,61 @@
         } else {
           colorCount.textContent = currentColors.length;
           renderColorList(currentColors);
-          updateJsonPreview();
         }
       });
     });
   }
 
-  function updateJsonPreview() {
-    parent.postMessage({ pluginMessage: { type: 'export-json', colors: currentColors, pattern: currentPattern } }, '*');
+  // ── Messaging helpers ─────────────────────────────────────────────────────
+  function postMsg(msg) {
+    parent.postMessage({ pluginMessage: msg }, '*');
+  }
+
+  function applyNaming() {
+    postMsg({
+      type: 'apply-naming',
+      colors: currentColors,
+      pattern: currentPattern,
+      customPrefix: customPrefixInput.value,
+    });
   }
 
   // ── Event Listeners ────────────────────────────────────────────────────────
   patternSelect.addEventListener('change', () => {
     currentPattern = patternSelect.value;
     customPrefixField.classList.toggle('hidden', currentPattern !== 'custom');
-    if (currentColors.length > 0) {
-      applyNaming();
-    }
+    if (currentColors.length > 0) applyNaming();
   });
 
   customPrefixInput.addEventListener('input', () => {
-    if (currentColors.length > 0 && currentPattern === 'custom') {
-      applyNaming();
-    }
+    if (currentColors.length > 0 && currentPattern === 'custom') applyNaming();
   });
-
-  function applyNaming() {
-    parent.postMessage({
-      pluginMessage: {
-        type: 'apply-naming',
-        colors: currentColors,
-        pattern: currentPattern,
-        customPrefix: customPrefixInput.value,
-      }
-    }, '*');
-  }
 
   extractBtn.addEventListener('click', () => {
     setLoading(true);
     hideStatus();
-    parent.postMessage({
-      pluginMessage: {
-        type: 'extract-colors',
-        pattern: currentPattern,
-        customPrefix: customPrefixInput.value,
-      }
-    }, '*');
+    postMsg({
+      type: 'extract-colors',
+      pattern: currentPattern,
+      customPrefix: customPrefixInput.value,
+    });
   });
 
   reapplyBtn.addEventListener('click', applyNaming);
-
   clearBtn.addEventListener('click', resetUI);
 
   exportVarsBtn.addEventListener('click', () => {
     if (!currentColors.length) return;
     setExportLoading(true);
-    showStatus('Creating Figma Variables collection…', 'info');
-    parent.postMessage({
-      pluginMessage: { type: 'export-variables', colors: currentColors, pattern: currentPattern }
-    }, '*');
+    postMsg({ type: 'export-variables', colors: currentColors, pattern: currentPattern });
   });
 
-  exportJsonBtn.addEventListener('click', () => {
+  copyJsonBtn.addEventListener('click', () => {
     if (!currentColors.length) return;
-    jsonSection.classList.remove('hidden');
-    updateJsonPreview();
-  });
-
-  copyBtn.addEventListener('click', () => {
-    const text = jsonPreview.textContent;
-    if (!text) return;
-    navigator.clipboard.writeText(text).then(() => {
-      copyBtn.textContent = 'Copied!';
-      setTimeout(() => { copyBtn.textContent = 'Copy'; }, 1500);
-    });
+    copyJsonBtn.disabled = true;
+    copyJsonBtn.textContent = '…';
+    pendingCopy = true;
+    postMsg({ type: 'export-json', colors: currentColors, pattern: currentPattern });
   });
 
   // ── Plugin Messages ────────────────────────────────────────────────────────
@@ -632,12 +630,14 @@
     if (!msg) return;
 
     switch (msg.type) {
+
       case 'no-selection':
         setLoading(false);
-        showStatus('⚠ No elements selected. Select one or more layers in Figma first.', 'warning');
+        showStatus('⚠ No elements selected. Select one or more layers first.', 'warning');
         break;
 
-      case 'colors-extracted':
+      case 'colors-extracted': {
+        const isFirst = msg.source === 'extract';
         setLoading(false);
         currentColors = msg.colors;
 
@@ -655,23 +655,38 @@
         clearBtn.classList.remove('hidden');
         colorCount.textContent = currentColors.length;
         renderColorList(currentColors);
-        updateJsonPreview();
-        showStatus(`✓ ${currentColors.length} unique color${currentColors.length !== 1 ? 's' : ''} extracted.`, 'success');
+
+        if (isFirst) {
+          showStatus(
+            `✓ ${currentColors.length} unique color${currentColors.length !== 1 ? 's' : ''} extracted.`,
+            'success',
+            true
+          );
+        }
         break;
+      }
 
       case 'json-ready':
-        jsonContent = msg.json;
-        jsonPreview.textContent = msg.json;
+        if (pendingCopy) {
+          pendingCopy = false;
+          copyToClipboard(msg.json).then(() => {
+            showToast('✓ JSON copied to clipboard!', 'success');
+          }).catch(() => {
+            showToast('✗ Could not copy — try again.', 'error');
+          });
+          copyJsonBtn.disabled  = false;
+          copyJsonBtn.innerHTML = '<span class="btn-icon">{}</span> Copy JSON';
+        }
         break;
 
       case 'export-done':
         setExportLoading(false);
-        showStatus(`✓ ${msg.count} variable${msg.count !== 1 ? 's' : ''} created in Figma Variables.`, 'success');
+        showToast(`✓ ${msg.count} variable${msg.count !== 1 ? 's' : ''} exported to Figma Variables!`, 'success');
         break;
 
       case 'export-error':
         setExportLoading(false);
-        showStatus(`✗ Error: ${msg.message}`, 'error');
+        showToast(`✗ Error: ${msg.message}`, 'error');
         break;
     }
   };

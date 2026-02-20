@@ -401,6 +401,18 @@
           ↺ Re-apply naming pattern
         </button>
       </div>
+
+      <!-- Bulk rename panel -->
+      <div id="bulkRenameSection" class="hidden" style="margin-top: 10px;">
+        <div class="divider" style="margin-bottom: 10px;"></div>
+        <div class="section-title" style="margin-bottom: 6px;">Find &amp; Replace</div>
+        <div style="display: flex; gap: 6px; align-items: center;">
+          <input type="text" id="findInput"    placeholder="Find…"    style="flex:1;" />
+          <input type="text" id="replaceInput" placeholder="Replace…" style="flex:1;" />
+          <button class="btn btn-secondary" id="replaceAllBtn" style="width: auto; padding: 6px 12px; white-space: nowrap;">Replace All</button>
+        </div>
+        <div id="replaceStatus" style="font-size:10px; color:var(--text-muted); margin-top:4px; min-height:14px;"></div>
+      </div>
     </div>
 
     <!-- Export section -->
@@ -451,6 +463,11 @@
   const colorList         = document.getElementById('colorList');
   const colorCount        = document.getElementById('colorCount');
   const toast             = document.getElementById('toast');
+  const bulkRenameSection = document.getElementById('bulkRenameSection');
+  const findInput         = document.getElementById('findInput');
+  const replaceInput      = document.getElementById('replaceInput');
+  const replaceAllBtn     = document.getElementById('replaceAllBtn');
+  const replaceStatus     = document.getElementById('replaceStatus');
 
   // ── Toast ──────────────────────────────────────────────────────────────────
   function showToast(message, type = 'success') {
@@ -515,8 +532,12 @@
     colorList.innerHTML = '';
     colorSection.classList.add('hidden');
     exportSection.classList.add('hidden');
+    bulkRenameSection.classList.add('hidden');
     emptyState.classList.remove('hidden');
     clearBtn.classList.add('hidden');
+    findInput.value = '';
+    replaceInput.value = '';
+    replaceStatus.textContent = '';
     hideStatus();
   }
 
@@ -610,6 +631,24 @@
   reapplyBtn.addEventListener('click', applyNaming);
   clearBtn.addEventListener('click', resetUI);
 
+  replaceAllBtn.addEventListener('click', () => {
+    const find = findInput.value;
+    if (!find || !currentColors.length) return;
+    const replace = replaceInput.value;
+    const regex = new RegExp(find.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+    let count = 0;
+    currentColors = currentColors.map(color => {
+      const next = color.tokenName.replace(regex, replace);
+      if (next !== color.tokenName) count++;
+      return { ...color, tokenName: next };
+    });
+    renderColorList(currentColors);
+    replaceStatus.textContent = count > 0
+      ? `✓ ${count} token${count !== 1 ? 's' : ''} updated`
+      : 'No matches found';
+    setTimeout(() => { replaceStatus.textContent = ''; }, 2500);
+  });
+
   exportVarsBtn.addEventListener('click', () => {
     if (!currentColors.length) return;
     setExportLoading(true);
@@ -652,6 +691,7 @@
         emptyState.classList.add('hidden');
         colorSection.classList.remove('hidden');
         exportSection.classList.remove('hidden');
+        bulkRenameSection.classList.remove('hidden');
         clearBtn.classList.remove('hidden');
         colorCount.textContent = currentColors.length;
         renderColorList(currentColors);

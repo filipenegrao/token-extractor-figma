@@ -122,14 +122,47 @@ function lightnessToAntLevel(l) {
     return Math.max(1, Math.min(10, Math.round((1 - l) * 9) + 1));
 }
 function assignTokenNames(colors, pattern, customPrefix) {
-    // Track role usage counts to avoid duplicates
+    const SHADES = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950];
+    // ── Rank-based shade distribution (tailwind & custom only) ────────────────
+    // Groups colors by role, sorts each group by lightness (light → dark),
+    // then distributes shades proportionally across the scale.
+    // This guarantees: no collisions, shade 50 always reachable, palettes spread evenly.
+    const rankShadeMap = new Map();
+    if (pattern === "tailwind" || pattern === "custom") {
+        const byRole = new Map();
+        for (const color of colors) {
+            const role = detectColorRole(color.r, color.g, color.b);
+            if (!byRole.has(role))
+                byRole.set(role, []);
+            byRole.get(role).push(color);
+        }
+        for (const [, group] of byRole) {
+            // Sort lightest → darkest (ascending shade index)
+            const sorted = [...group].sort((a, b) => {
+                const [, , la] = rgbToHsl(a.r, a.g, a.b);
+                const [, , lb] = rgbToHsl(b.r, b.g, b.b);
+                return lb - la; // higher lightness = lower shade index
+            });
+            const n = sorted.length;
+            sorted.forEach((color, i) => {
+                const shadeIndex = n === 1
+                    ? 5 // single color → 500 (conventional base)
+                    : Math.round((i * (SHADES.length - 1)) / (n - 1));
+                rankShadeMap.set(color.hex, SHADES[shadeIndex]);
+            });
+        }
+    }
+    // ── Deduplication counter (material / antd / wcag use absolute lightness) ─
     const roleCount = {};
     return colors.map((color) => {
-        var _a, _b, _c;
-        const [h, s, l] = rgbToHsl(color.r, color.g, color.b);
+        var _a, _b, _c, _d;
+        const [, , l] = rgbToHsl(color.r, color.g, color.b);
         const role = detectColorRole(color.r, color.g, color.b);
-        const shade = lightnessToShade(l);
         const antLevel = lightnessToAntLevel(l);
+        // Rank-based shade for tailwind/custom; absolute lightness for the rest
+        const shade = (pattern === "tailwind" || pattern === "custom")
+            ? ((_a = rankShadeMap.get(color.hex)) !== null && _a !== void 0 ? _a : lightnessToShade(l))
+            : lightnessToShade(l);
         let tokenName = "";
         switch (pattern) {
             case "material": {
@@ -144,7 +177,7 @@ function assignTokenNames(colors, pattern, customPrefix) {
                     pink: "secondary",
                     gray: "surface",
                 };
-                const semantic = (_a = semanticMap[role]) !== null && _a !== void 0 ? _a : "color";
+                const semantic = (_b = semanticMap[role]) !== null && _b !== void 0 ? _b : "color";
                 tokenName = shade === 500 ? `color-${semantic}` : `color-${semantic}-${shade}`;
                 break;
             }
@@ -164,7 +197,7 @@ function assignTokenNames(colors, pattern, customPrefix) {
                     pink: "error",
                     gray: "neutral",
                 };
-                const semantic = (_b = semanticMapAnt[role]) !== null && _b !== void 0 ? _b : "color";
+                const semantic = (_c = semanticMapAnt[role]) !== null && _c !== void 0 ? _c : "color";
                 tokenName = `${semantic}-${antLevel}`;
                 break;
             }
@@ -180,7 +213,7 @@ function assignTokenNames(colors, pattern, customPrefix) {
                     pink: "error",
                     gray: l > 0.5 ? "neutral-light" : "neutral-dark",
                 };
-                tokenName = `color-${(_c = semanticMapWcag[role]) !== null && _c !== void 0 ? _c : "custom"}`;
+                tokenName = `color-${(_d = semanticMapWcag[role]) !== null && _d !== void 0 ? _d : "custom"}`;
                 break;
             }
             case "custom": {
@@ -189,7 +222,7 @@ function assignTokenNames(colors, pattern, customPrefix) {
                 break;
             }
         }
-        // Deduplicate token names
+        // Collision guard — still needed for material/antd/wcag (absolute lightness)
         if (roleCount[tokenName] !== undefined) {
             roleCount[tokenName]++;
             tokenName = `${tokenName}-${roleCount[tokenName]}`;

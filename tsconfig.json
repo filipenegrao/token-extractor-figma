@@ -1,0 +1,12 @@
+{
+  "compilerOptions": {
+    "target": "ES2017",
+    "lib": ["ES2017"],
+    "strict": true,
+    "types": ["@figma/plugin-typings"],
+    "outDir": ".",
+    "sourceMap": true,
+    "allowJs": false
+  },
+  "files": ["code.ts"]
+}

@@ -1,0 +1,13 @@
+{
+  "name": "token-extractor-figma",
+  "version": "1.0.0",
+  "description": "Figma plugin to extract design tokens from selected elements",
+  "scripts": {
+    "build": "tsc --noEmit false",
+    "watch": "tsc --watch"
+  },
+  "devDependencies": {
+    "@figma/plugin-typings": "*",
+    "typescript": "^5.0.0"
+  }
+}

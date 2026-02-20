@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Token Extractor</title>
+  <style>
+    /* ── Reset & Base ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #1e1e1e;
+      --surface: #2a2a2a;
+      --surface2: #333;
+      --border: #3a3a3a;
+      --text: #e8e8e8;
+      --text-muted: #888;
+      --accent: #7c6af7;
+      --accent-hover: #9b8fff;
+      --success: #4caf82;
+      --error: #f47067;
+      --warning: #e8a838;
+      --radius: 6px;
+      --radius-sm: 4px;
+      font-size: 12px;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 0;
+      min-height: 100vh;
+    }
+
+    /* ── Layout ── */
+    .app {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+
+    header {
+      padding: 14px 16px 10px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    header h1 {
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+
+    header .badge {
+      background: var(--accent);
+      color: #fff;
+      font-size: 9px;
+      font-weight: 700;
+      padding: 1px 5px;
+      border-radius: 10px;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+
+    .main {
+      flex: 1;
+      overflow-y: auto;
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    /* ── Controls ── */
+    .controls {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .field label {
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+    }
+
+    select, input[type="text"] {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 7px 10px;
+      border-radius: var(--radius-sm);
+      font-size: 12px;
+      width: 100%;
+      outline: none;
+      transition: border-color 0.15s;
+      appearance: none;
+      -webkit-appearance: none;
+    }
+
+    select {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23888'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 10px center;
+      padding-right: 28px;
+      cursor: pointer;
+    }
+
+    select:focus, input[type="text"]:focus {
+      border-color: var(--accent);
+    }
+
+    /* ── Buttons ── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 8px 14px;
+      border-radius: var(--radius-sm);
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      border: none;
+      transition: background 0.15s, opacity 0.15s;
+      width: 100%;
+    }
+
+    .btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+    }
+    .btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
+
+    .btn-secondary {
+      background: var(--surface2);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn-secondary:hover:not(:disabled) { background: #3c3c3c; }
+
+    .btn-success {
+      background: var(--success);
+      color: #fff;
+    }
+    .btn-success:hover:not(:disabled) { background: #5cc994; }
+
+    .btn-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .btn-icon {
+      font-size: 14px;
+    }
+
+    /* ── Color List ── */
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+
+    .section-title {
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+    }
+
+    .color-count {
+      font-size: 10px;
+      background: var(--surface2);
+      color: var(--text-muted);
+      padding: 1px 6px;
+      border-radius: 10px;
+    }
+
+    .color-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .color-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 8px 10px;
+      transition: border-color 0.15s;
+    }
+
+    .color-item:hover { border-color: var(--accent); }
+
+    .color-swatch {
+      width: 28px;
+      height: 28px;
+      border-radius: var(--radius-sm);
+      flex-shrink: 0;
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+
+    .color-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .color-hex {
+      font-size: 10px;
+      color: var(--text-muted);
+      font-family: "SF Mono", "Fira Code", monospace;
+    }
+
+    .token-input {
+      background: transparent;
+      border: none;
+      border-bottom: 1px solid transparent;
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 500;
+      padding: 1px 0;
+      width: 100%;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    .token-input:focus {
+      border-bottom-color: var(--accent);
+    }
+
+    .source-badge {
+      font-size: 9px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 2px 5px;
+      border-radius: 3px;
+      flex-shrink: 0;
+    }
+
+    .source-fill   { background: #3b4aff22; color: #7c8fff; }
+    .source-stroke { background: #ff8c3b22; color: #ffaa6a; }
+    .source-text   { background: #3bff8c22; color: #6affaa; }
+
+    /* ── JSON Preview ── */
+    .json-preview-wrap {
+      position: relative;
+    }
+
+    .json-preview {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 10px;
+      font-family: "SF Mono", "Fira Code", monospace;
+      font-size: 10px;
+      color: var(--text);
+      white-space: pre;
+      overflow: auto;
+      max-height: 180px;
+      line-height: 1.6;
+    }
+
+    .copy-btn {
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      font-size: 10px;
+      padding: 3px 8px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: color 0.15s, border-color 0.15s;
+    }
+
+    .copy-btn:hover { color: var(--text); border-color: var(--accent); }
+
+    /* ── Status ── */
+    .status {
+      font-size: 11px;
+      padding: 8px 12px;
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .status-info    { background: #7c6af722; color: #b0a4ff; border: 1px solid #7c6af744; }
+    .status-success { background: #4caf8222; color: #7ddba8; border: 1px solid #4caf8244; }
+    .status-error   { background: #f4706722; color: #f9a09a; border: 1px solid #f4706744; }
+    .status-warning { background: #e8a83822; color: #f0c47a; border: 1px solid #e8a83844; }
+
+    .hidden { display: none !important; }
+
+    /* ── Empty State ── */
+    .empty-state {
+      text-align: center;
+      padding: 32px 16px;
+      color: var(--text-muted);
+    }
+
+    .empty-state .icon {
+      font-size: 32px;
+      margin-bottom: 8px;
+      opacity: 0.5;
+    }
+
+    .empty-state p {
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    /* ── Divider ── */
+    .divider {
+      height: 1px;
+      background: var(--border);
+    }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+    ::-webkit-scrollbar-thumb:hover { background: #555; }
+  </style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>Token Extractor</h1>
+    <span class="badge">Beta</span>
+  </header>
+
+  <div class="main">
+    <!-- Controls -->
+    <div class="controls">
+      <div class="field">
+        <label>Naming Pattern</label>
+        <select id="pattern">
+          <option value="tailwind">Tailwind CSS</option>
+          <option value="material">Material Design 3</option>
+          <option value="antd">Ant Design</option>
+          <option value="wcag">WCAG / Accessible</option>
+          <option value="custom">Custom Prefix</option>
+        </select>
+      </div>
+
+      <div class="field hidden" id="customPrefixField">
+        <label>Custom Prefix</label>
+        <input type="text" id="customPrefix" placeholder="e.g. ds, brand, app" value="ds" />
+      </div>
+
+      <button class="btn btn-primary" id="extractBtn">
+        <span class="btn-icon">⬡</span> Extract Colors from Selection
+      </button>
+    </div>
+
+    <!-- Status -->
+    <div id="status" class="status status-info hidden"></div>
+
+    <!-- Color list section -->
+    <div id="colorSection" class="hidden">
+      <div class="section-header">
+        <span class="section-title">Extracted Tokens</span>
+        <span class="color-count" id="colorCount">0</span>
+      </div>
+
+      <div class="color-list" id="colorList"></div>
+
+      <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px;">
+        <button class="btn btn-secondary" id="reapplyBtn">
+          ↺ Re-apply naming pattern
+        </button>
+      </div>
+    </div>
+
+    <!-- Export section -->
+    <div id="exportSection" class="hidden">
+      <div class="divider" style="margin-bottom: 14px;"></div>
+
+      <div class="btn-row">
+        <button class="btn btn-success" id="exportVarsBtn">
+          <span class="btn-icon">◈</span> Export to Variables
+        </button>
+        <button class="btn btn-secondary" id="exportJsonBtn">
+          <span class="btn-icon">{}</span> Export to JSON
+        </button>
+      </div>
+    </div>
+
+    <!-- JSON Preview -->
+    <div id="jsonSection" class="hidden">
+      <div class="section-header" style="margin-top: 4px;">
+        <span class="section-title">JSON Preview</span>
+      </div>
+      <div class="json-preview-wrap">
+        <pre class="json-preview" id="jsonPreview"></pre>
+        <button class="copy-btn" id="copyBtn">Copy</button>
+      </div>
+    </div>
+
+    <!-- Empty state (initial) -->
+    <div id="emptyState" class="empty-state">
+      <div class="icon">◎</div>
+      <p>Select one or more elements in Figma,<br>then click <strong>Extract Colors</strong>.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ── State ──────────────────────────────────────────────────────────────────
+  let currentColors = [];
+  let currentPattern = 'tailwind';
+  let jsonContent = '';
+
+  // ── DOM refs ───────────────────────────────────────────────────────────────
+  const patternSelect   = document.getElementById('pattern');
+  const customPrefixField = document.getElementById('customPrefixField');
+  const customPrefixInput = document.getElementById('customPrefix');
+  const extractBtn      = document.getElementById('extractBtn');
+  const reapplyBtn      = document.getElementById('reapplyBtn');
+  const exportVarsBtn   = document.getElementById('exportVarsBtn');
+  const exportJsonBtn   = document.getElementById('exportJsonBtn');
+  const copyBtn         = document.getElementById('copyBtn');
+  const statusEl        = document.getElementById('status');
+  const colorSection    = document.getElementById('colorSection');
+  const exportSection   = document.getElementById('exportSection');
+  const jsonSection     = document.getElementById('jsonSection');
+  const emptyState      = document.getElementById('emptyState');
+  const colorList       = document.getElementById('colorList');
+  const colorCount      = document.getElementById('colorCount');
+  const jsonPreview     = document.getElementById('jsonPreview');
+
+  // ── Helpers ────────────────────────────────────────────────────────────────
+  function showStatus(message, type = 'info') {
+    statusEl.textContent = message;
+    statusEl.className = `status status-${type}`;
+    statusEl.classList.remove('hidden');
+  }
+
+  function hideStatus() {
+    statusEl.classList.add('hidden');
+  }
+
+  function setLoading(loading) {
+    extractBtn.disabled = loading;
+    exportVarsBtn.disabled = loading;
+    exportJsonBtn.disabled = loading;
+  }
+
+  function renderColorList(colors) {
+    colorList.innerHTML = '';
+    colors.forEach((color, index) => {
+      const item = document.createElement('div');
+      item.className = 'color-item';
+
+      const alpha = color.a < 1 ? ` ${Math.round(color.a * 100)}%` : '';
+
+      item.innerHTML = `
+        <div class="color-swatch" style="background: ${color.hex}; opacity: ${color.a};"></div>
+        <div class="color-info">
+          <input
+            class="token-input"
+            type="text"
+            value="${color.tokenName}"
+            data-index="${index}"
+            spellcheck="false"
+          />
+          <div class="color-hex">${color.hex}${alpha}</div>
+        </div>
+        <span class="source-badge source-${color.source}">${color.source}</span>
+      `;
+
+      colorList.appendChild(item);
+    });
+
+    // Live rename
+    colorList.querySelectorAll('.token-input').forEach(input => {
+      input.addEventListener('input', (e) => {
+        const idx = parseInt(e.target.dataset.index);
+        currentColors[idx].tokenName = e.target.value;
+        updateJsonPreview();
+      });
+    });
+  }
+
+  function updateJsonPreview() {
+    parent.postMessage({ pluginMessage: { type: 'export-json', colors: currentColors, pattern: currentPattern } }, '*');
+  }
+
+  // ── Event Listeners ────────────────────────────────────────────────────────
+  patternSelect.addEventListener('change', () => {
+    currentPattern = patternSelect.value;
+    customPrefixField.classList.toggle('hidden', currentPattern !== 'custom');
+    if (currentColors.length > 0) {
+      applyNaming();
+    }
+  });
+
+  customPrefixInput.addEventListener('input', () => {
+    if (currentColors.length > 0 && currentPattern === 'custom') {
+      applyNaming();
+    }
+  });
+
+  function applyNaming() {
+    parent.postMessage({
+      pluginMessage: {
+        type: 'apply-naming',
+        colors: currentColors,
+        pattern: currentPattern,
+        customPrefix: customPrefixInput.value,
+      }
+    }, '*');
+  }
+
+  extractBtn.addEventListener('click', () => {
+    setLoading(true);
+    hideStatus();
+    parent.postMessage({
+      pluginMessage: {
+        type: 'extract-colors',
+        pattern: currentPattern,
+        customPrefix: customPrefixInput.value,
+      }
+    }, '*');
+  });
+
+  reapplyBtn.addEventListener('click', applyNaming);
+
+  exportVarsBtn.addEventListener('click', () => {
+    if (!currentColors.length) return;
+    setLoading(true);
+    showStatus('Creating Figma Variables collection…', 'info');
+    parent.postMessage({
+      pluginMessage: { type: 'export-variables', colors: currentColors, pattern: currentPattern }
+    }, '*');
+  });
+
+  exportJsonBtn.addEventListener('click', () => {
+    if (!currentColors.length) return;
+    updateJsonPreview();
+    jsonSection.classList.remove('hidden');
+  });
+
+  copyBtn.addEventListener('click', () => {
+    if (!jsonContent) return;
+    navigator.clipboard.writeText(jsonContent).then(() => {
+      copyBtn.textContent = 'Copied!';
+      setTimeout(() => { copyBtn.textContent = 'Copy'; }, 1500);
+    });
+  });
+
+  // ── Plugin Messages ────────────────────────────────────────────────────────
+  window.onmessage = (event) => {
+    const msg = event.data.pluginMessage;
+    if (!msg) return;
+
+    switch (msg.type) {
+      case 'no-selection':
+        setLoading(false);
+        showStatus('⚠ No elements selected. Select one or more layers in Figma first.', 'warning');
+        break;
+
+      case 'colors-extracted':
+        setLoading(false);
+        currentColors = msg.colors;
+
+        if (currentColors.length === 0) {
+          showStatus('No solid colors found in the selected elements.', 'warning');
+          colorSection.classList.add('hidden');
+          exportSection.classList.add('hidden');
+          emptyState.classList.remove('hidden');
+          break;
+        }
+
+        emptyState.classList.add('hidden');
+        colorSection.classList.remove('hidden');
+        exportSection.classList.remove('hidden');
+        colorCount.textContent = currentColors.length;
+        renderColorList(currentColors);
+        updateJsonPreview();
+        showStatus(`✓ ${currentColors.length} unique color${currentColors.length !== 1 ? 's' : ''} extracted.`, 'success');
+        break;
+
+      case 'json-ready':
+        jsonContent = msg.json;
+        jsonPreview.textContent = msg.json;
+        break;
+
+      case 'export-done':
+        setLoading(false);
+        showStatus(`✓ ${msg.count} variable${msg.count !== 1 ? 's' : ''} created in Figma Variables.`, 'success');
+        break;
+
+      case 'export-error':
+        setLoading(false);
+        showStatus(`✗ Error: ${msg.message}`, 'error');
+        break;
+    }
+  };
+</script>
+</body>
+</html>

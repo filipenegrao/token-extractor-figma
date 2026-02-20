@@ -214,6 +214,20 @@
 
     .color-item:hover { border-color: var(--accent); }
 
+    .remove-btn {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 14px;
+      padding: 2px 4px;
+      border-radius: var(--radius-sm);
+      flex-shrink: 0;
+      line-height: 1;
+      transition: color 0.15s, background 0.15s;
+    }
+    .remove-btn:hover { color: var(--error); background: #f4706722; }
+
     .color-swatch {
       width: 28px;
       height: 28px;
@@ -352,6 +366,7 @@
   <header>
     <h1>Token Extractor</h1>
     <span class="badge">Beta</span>
+    <button class="btn btn-secondary hidden" id="clearBtn" style="width: auto; padding: 4px 10px; margin-left: auto; font-size: 11px;">✕ Clear</button>
   </header>
 
   <div class="main">
@@ -454,7 +469,22 @@
   const colorCount      = document.getElementById('colorCount');
   const jsonPreview     = document.getElementById('jsonPreview');
 
+  // ── DOM refs ───────────────────────────────────────────────────────────────
+  const clearBtn = document.getElementById('clearBtn');
+
   // ── Helpers ────────────────────────────────────────────────────────────────
+  function resetUI() {
+    currentColors = [];
+    jsonContent = '';
+    colorList.innerHTML = '';
+    colorSection.classList.add('hidden');
+    exportSection.classList.add('hidden');
+    jsonSection.classList.add('hidden');
+    emptyState.classList.remove('hidden');
+    clearBtn.classList.add('hidden');
+    hideStatus();
+  }
+
   function showStatus(message, type = 'info') {
     statusEl.textContent = message;
     statusEl.className = `status status-${type}`;
@@ -492,6 +522,7 @@
           <div class="color-hex">${color.hex}${alpha}</div>
         </div>
         <span class="source-badge source-${color.source}">${color.source}</span>
+        <button class="remove-btn" data-index="${index}" title="Remove this token">✕</button>
       `;
 
       colorList.appendChild(item);
@@ -503,6 +534,21 @@
         const idx = parseInt(e.target.dataset.index);
         currentColors[idx].tokenName = e.target.value;
         updateJsonPreview();
+      });
+    });
+
+    // Remove buttons
+    colorList.querySelectorAll('.remove-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const idx = parseInt(e.currentTarget.dataset.index);
+        currentColors.splice(idx, 1);
+        if (currentColors.length === 0) {
+          resetUI();
+        } else {
+          colorCount.textContent = currentColors.length;
+          renderColorList(currentColors);
+          updateJsonPreview();
+        }
       });
     });
   }
@@ -550,6 +596,8 @@
   });
 
   reapplyBtn.addEventListener('click', applyNaming);
+
+  clearBtn.addEventListener('click', resetUI);
 
   exportVarsBtn.addEventListener('click', () => {
     if (!currentColors.length) return;
@@ -600,6 +648,7 @@
         emptyState.classList.add('hidden');
         colorSection.classList.remove('hidden');
         exportSection.classList.remove('hidden');
+        clearBtn.classList.remove('hidden');
         colorCount.textContent = currentColors.length;
         renderColorList(currentColors);
         updateJsonPreview();

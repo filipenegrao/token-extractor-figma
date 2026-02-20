@@ -497,6 +497,9 @@
 
   function setLoading(loading) {
     extractBtn.disabled = loading;
+  }
+
+  function setExportLoading(loading) {
     exportVarsBtn.disabled = loading;
     exportJsonBtn.disabled = loading;
   }
@@ -601,7 +604,7 @@
 
   exportVarsBtn.addEventListener('click', () => {
     if (!currentColors.length) return;
-    setLoading(true);
+    setExportLoading(true);
     showStatus('Creating Figma Variables collection…', 'info');
     parent.postMessage({
       pluginMessage: { type: 'export-variables', colors: currentColors, pattern: currentPattern }
@@ -610,13 +613,14 @@
 
   exportJsonBtn.addEventListener('click', () => {
     if (!currentColors.length) return;
-    updateJsonPreview();
     jsonSection.classList.remove('hidden');
+    updateJsonPreview();
   });
 
   copyBtn.addEventListener('click', () => {
-    if (!jsonContent) return;
-    navigator.clipboard.writeText(jsonContent).then(() => {
+    const text = jsonPreview.textContent;
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {
       copyBtn.textContent = 'Copied!';
       setTimeout(() => { copyBtn.textContent = 'Copy'; }, 1500);
     });
@@ -661,12 +665,12 @@
         break;
 
       case 'export-done':
-        setLoading(false);
+        setExportLoading(false);
         showStatus(`✓ ${msg.count} variable${msg.count !== 1 ? 's' : ''} created in Figma Variables.`, 'success');
         break;
 
       case 'export-error':
-        setLoading(false);
+        setExportLoading(false);
         showStatus(`✗ Error: ${msg.message}`, 'error');
         break;
     }
